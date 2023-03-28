@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 import requests
 import telegram
 
-from . import exceptions
+from exceptions import StatusCodeError
 
 
 load_dotenv()
@@ -39,16 +39,21 @@ def check_tokens():
     При отсутсвии нужного токена выводит ошибку в терминал и
     выбрасывает исключение.
     """
+
+    def get_description():
+        """Возвращает описание токена."""
+        for token, description in env_tokens.items():
+            if token is None:
+                return description
+
     if (PRACTICUM_TOKEN is None
             or TELEGRAM_TOKEN is None
             or TELEGRAM_CHAT_ID is None):
-        for token, description in env_tokens.items():
-            if token is None:
-                logging.critical(
-                    f'Ошибка при обработке токенов. Убедитесь,'
-                    f' что указан {description}!'
-                )
-                sys.exit(1)
+        logging.critical(
+            f'Ошибка при обработке токенов. Убедитесь,'
+            f' что указан {get_description()}!'
+        )
+        sys.exit(1)
 
 
 def send_message(bot, message):
@@ -77,7 +82,7 @@ def get_api_answer(timestamp):
             f' по адресу {ENDPOINT} c параметами {params}'
         )
     if api_answer.status_code != requests.codes.OK:
-        raise exceptions.StatusCodeError(
+        raise StatusCodeError(
             'API Яндекса вернул код статуса отличный'
             f' от 200: {api_answer.status_code}.'
         )
