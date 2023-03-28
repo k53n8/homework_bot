@@ -7,13 +7,10 @@ from dotenv import load_dotenv
 import requests
 import telegram
 
+from . import exceptions
+
 
 load_dotenv()
-
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.DEBUG,
-    stream=sys.stdout)
 
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
@@ -42,21 +39,16 @@ def check_tokens():
     При отсутсвии нужного токена выводит ошибку в терминал и
     выбрасывает исключение.
     """
-    # for token, description in env_tokens.items():
-    #     if token is None:
-    #         logging.critical(
-    #             f'Ошибка при обработке токенов. Убедитесь,'
-    #             f' что указан {description}!'
-    #         )
-    #         sys.exit()
-
     if (PRACTICUM_TOKEN is None
             or TELEGRAM_TOKEN is None
             or TELEGRAM_CHAT_ID is None):
-        logging.critical('Ошибка при обработке токенов')
-        raise Exception
-    else:
-        return True
+        for token, description in env_tokens.items():
+            if token is None:
+                logging.critical(
+                    f'Ошибка при обработке токенов. Убедитесь,'
+                    f' что указан {description}!'
+                )
+                sys.exit(1)
 
 
 def send_message(bot, message):
@@ -64,25 +56,32 @@ def send_message(bot, message):
     Отправляет сообщение по заданному идентификатору чата.
     В случае ошибки при отправке выбрасывает исключение.
     """
+    logging.debug('Начало отправки сообщения...')
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logging.debug(f'Сообщение <<{message}>> успешно отправлено')
-    except Exception as e:
+    except telegram.TelegramError as e:
         logging.error(f'Возникла ошибка при отправке сообщения: {e}')
 
 
 def get_api_answer(timestamp):
     """Делает запрос к API Практикума."""
     params = {'from_date': timestamp}
+    logging.debug('Отправлен запрос к API Яндекс по '
+                  f'адресу {ENDPOINT} с параметрами: {params}')
     try:
         api_answer = requests.get(ENDPOINT, headers=HEADERS, params=params)
     except requests.RequestException as e:
-        raise ConnectionError(f'Ошибка при подключении к API Яндекса: {e}')
+        raise ConnectionError(
+            f'Ошибка при попытке подключении к API Яндекса: {e}'
+            f' по адресу {ENDPOINT} c параметами {params}'
+        )
     if api_answer.status_code != requests.codes.OK:
-        raise Exception(
+        raise exceptions.StatusCodeError(
             'API Яндекса вернул код статуса отличный'
             f' от 200: {api_answer.status_code}.'
         )
+    logging.debug('Запрос к API Яндекс прошел успешно.')
     return api_answer.json()
 
 
@@ -92,6 +91,7 @@ def check_response(response):
     В случае несовпадения структуры ответа с ожидаемым
     выкидывает исключения.
     """
+    logging.debug('Начало проверки ответа от сервера...')
     if not isinstance(response, dict):
         raise TypeError('Ответ API Яндекса пришел не в виде словаря')
     if response.get('current_date') is None:
@@ -100,18 +100,24 @@ def check_response(response):
         raise KeyError('Ответ API Яндекса пришел без ключа homeworks')
     if not isinstance(response.get('homeworks'), list):
         raise TypeError('homeworks в ответе API не является списком')
+    logging.debug('Проверка ответа успешно завершена')
 
 
 def parse_status(homework):
     """Проверяет статус домашней работы."""
+    logging.debug('Начало проверки статуса домашней работы...')
     if 'homework_name' not in homework:
-        raise Exception(
+        raise KeyError(
             'В ответе API домашней работы отсутствует ключ homework_name'
+        )
+    if 'status' not in homework:
+        raise KeyError(
+            'В ответе API домашней работы отсутствует ключ status'
         )
     homework_name = homework['homework_name']
     for name, verdict in HOMEWORK_VERDICTS.items():
         if homework['status'] not in HOMEWORK_VERDICTS.keys():
-            raise Exception(
+            raise ValueError(
                 'Статус домашней работы отсутствует или незадокументирован'
             )
         if name == homework['status']:
@@ -121,11 +127,11 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
-    if check_tokens():
-        bot = telegram.Bot(token=TELEGRAM_TOKEN)
-        timestamp = int(time.time())
-    else:
-        sys.exit()
+    check_tokens()
+
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    timestamp = int(time.time())
+    last_error = None
 
     while True:
         try:
@@ -135,16 +141,30 @@ def main():
             if response['homeworks']:
                 homework = response.get('homeworks')
                 send_message(bot, parse_status(homework[0]))
+                last_error = None
             else:
-                logging.info('Статус домашней работы не изменился.')
+                logging.debug('Статус домашней работы не изменился.')
+
         except Exception as error:
-            message = f'Сбой в работе программы: {error}'
-            logging.error(message)
-            send_message(bot, message)
+            if last_error != error:
+                message = f'Сбой в работе программы: {error}'
+                logging.error(message, exc_info=True)
+                send_message(bot, message)
+                last_error = error
 
         finally:
             time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
+
+    logging.basicConfig(
+        format=(
+            '%(asctime)s - %(lineno)d - %(name)s - '
+            '%(funcName)s - %(levelname)s - %(message)s'
+        ),
+        level=logging.DEBUG,
+        stream=sys.stdout
+    )
+
     main()
