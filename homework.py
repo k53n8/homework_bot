@@ -56,7 +56,7 @@ def check_tokens():
             return unpack_desc
 
     if (not PRACTICUM_TOKEN
-            or not TELEGRAM_TOKEN 
+            or not TELEGRAM_TOKEN
             or not TELEGRAM_CHAT_ID):
         logging.critical(
             f'Ошибка при обработке токенов. Убедитесь,'
