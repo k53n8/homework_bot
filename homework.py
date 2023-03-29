@@ -32,26 +32,35 @@ env_tokens = {
     TELEGRAM_CHAT_ID: 'идентификатор Телеграм чата'
 }
 
+tokens = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]
+
 
 def check_tokens():
     """
     Проверка наличия токенов.
     При отсутсвии нужного токена выводит ошибку в терминал и
-    выбрасывает исключение.
+    останавливает работу программы.
     """
 
     def get_description():
-        """Возвращает описание токена."""
-        for token, description in env_tokens.items():
-            if token is None:
-                return description
+        """Возвращает описание всех отсутсвующих токенов."""
+        if any(t is False for t in tokens):
+            desc = []
+            if not PRACTICUM_TOKEN:
+                desc.append('токен Яндекс Практикум')
+            if not TELEGRAM_TOKEN:
+                desc.append('токен Телеграм бота')
+            if not TELEGRAM_CHAT_ID:
+                desc.append('ID Телеграм чата')
+            unpack_desc = ", ".join(desc)
+            return unpack_desc
 
-    if (PRACTICUM_TOKEN is None
-            or TELEGRAM_TOKEN is None
-            or TELEGRAM_CHAT_ID is None):
+    if (not PRACTICUM_TOKEN
+            or not TELEGRAM_TOKEN 
+            or not TELEGRAM_CHAT_ID):
         logging.critical(
             f'Ошибка при обработке токенов. Убедитесь,'
-            f' что указан {get_description()}!'
+            f' что указаны следующие токены: {get_description()}!'
         )
         sys.exit(1)
 
@@ -151,9 +160,9 @@ def main():
                 logging.debug('Статус домашней работы не изменился.')
 
         except Exception as error:
+            logging.error(f'Сбой в работе программы: {error}', exc_info=True)
             if last_error != error:
                 message = f'Сбой в работе программы: {error}'
-                logging.error(message, exc_info=True)
                 send_message(bot, message)
                 last_error = error
 
