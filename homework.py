@@ -26,12 +26,6 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
-env_tokens = {
-    PRACTICUM_TOKEN: 'токен Яндекс Практикум',
-    TELEGRAM_TOKEN: 'токен Телеграм бота',
-    TELEGRAM_CHAT_ID: 'идентификатор Телеграм чата'
-}
-
 tokens = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]
 
 
@@ -41,26 +35,26 @@ def check_tokens():
     При отсутсвии нужного токена выводит ошибку в терминал и
     останавливает работу программы.
     """
+    # if not all(tokens) тесты не пропускают.
 
-    def get_description():
-        """Возвращает описание всех отсутсвующих токенов."""
-        if any(t is False for t in tokens):
-            desc = []
-            if not PRACTICUM_TOKEN:
-                desc.append('токен Яндекс Практикум')
-            if not TELEGRAM_TOKEN:
-                desc.append('токен Телеграм бота')
-            if not TELEGRAM_CHAT_ID:
-                desc.append('ID Телеграм чата')
-            unpack_desc = ", ".join(desc)
-            return unpack_desc
+    # Со словарём такая же проблема была, по этому и выносил цикл с ним в
+    # отдельную функцию, мне самому тоже не понравилось городить тут такое.
+    # (Я потом удалю эти комменты)
 
     if (not PRACTICUM_TOKEN
             or not TELEGRAM_TOKEN
             or not TELEGRAM_CHAT_ID):
+        desc = []
+        if not PRACTICUM_TOKEN:
+            desc.append('токен Яндекс Практикум')
+        if not TELEGRAM_TOKEN:
+            desc.append('токен Телеграм бота')
+        if not TELEGRAM_CHAT_ID:
+            desc.append('ID Телеграм чата')
+        unpack_desc = ", ".join(desc)
         logging.critical(
             f'Ошибка при обработке токенов. Убедитесь,'
-            f' что указаны следующие токены: {get_description()}!'
+            f' что указаны следующие токены: {unpack_desc}!'
         )
         sys.exit(1)
 
@@ -114,7 +108,7 @@ def check_response(response):
         raise KeyError('Ответ API Яндекса пришел без ключа homeworks')
     if not isinstance(response.get('homeworks'), list):
         raise TypeError('homeworks в ответе API не является списком')
-    logging.debug('Проверка ответа успешно завершена')
+    logging.debug('Проверка ответа успешно завершена.')
 
 
 def parse_status(homework):
